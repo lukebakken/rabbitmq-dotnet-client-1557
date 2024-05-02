@@ -16,18 +16,6 @@ Console.CancelKeyPress += new ConsoleCancelEventHandler(CancelHandler);
 string hostName = "rabbitmq";
 ushort port = 5672;
 
-string? hostNameStr = Environment.GetEnvironmentVariable("RABBITMQ_NODENAME");
-if (false == String.IsNullOrWhiteSpace(hostNameStr))
-{
-    hostName = hostNameStr;
-}
-
-string? nodePortStr = Environment.GetEnvironmentVariable("RABBITMQ_NODE_PORT");
-if (false == String.IsNullOrWhiteSpace(nodePortStr))
-{
-    port = ushort.Parse(nodePortStr);
-}
-
 Console.WriteLine($"CONSUMER: waiting 30 seconds to try initial connection to {hostName}:{port}");
 if (latch.WaitOne(TimeSpan.FromSeconds(30)))
 {

@@ -2,9 +2,6 @@
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 
-using System;
-using System.Text;
-
 AutoResetEvent latch = new AutoResetEvent(false);
 
 void CancelHandler(object? sender, ConsoleCancelEventArgs e)
@@ -18,18 +15,6 @@ Console.CancelKeyPress += new ConsoleCancelEventHandler(CancelHandler);
 
 string hostName = "rabbitmq";
 ushort port = 5672;
-
-string? hostNameStr = Environment.GetEnvironmentVariable("RABBITMQ_NODENAME");
-if (false == String.IsNullOrWhiteSpace(hostNameStr))
-{
-    hostName = hostNameStr;
-}
-
-string? nodePortStr = Environment.GetEnvironmentVariable("RABBITMQ_NODE_PORT");
-if (false == String.IsNullOrWhiteSpace(nodePortStr))
-{
-    port = ushort.Parse(nodePortStr);
-}
 
 Console.WriteLine($"PRODUCER: waiting 5 seconds to try initial connection to {hostName}:{port}");
 Thread.Sleep(TimeSpan.FromSeconds(5));
