@@ -1,6 +1,13 @@
-﻿using RabbitMQ.Client;
+﻿using System.Diagnostics;
+
+using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
+
+const string exchangeName = "status_exchange";
+const string queueName = "status_updates";
+const string hostName = "rabbitmq";
+const ushort port = 5672;
 
 AutoResetEvent latch = new AutoResetEvent(false);
 
@@ -13,11 +20,8 @@ void CancelHandler(object? sender, ConsoleCancelEventArgs e)
 
 Console.CancelKeyPress += new ConsoleCancelEventHandler(CancelHandler);
 
-string hostName = "rabbitmq";
-ushort port = 5672;
-
-Console.WriteLine($"PRODUCER: waiting 5 seconds to try initial connection to {hostName}:{port}");
-Thread.Sleep(TimeSpan.FromSeconds(5));
+Console.WriteLine($"PRODUCER: waiting 10 seconds to try initial connection to {hostName}:{port}");
+Thread.Sleep(TimeSpan.FromSeconds(10));
 
 var factory = new ConnectionFactory()
 {
@@ -45,7 +49,7 @@ while (!connected)
     }
 }
 
-byte[] buffer = new byte[1024 * 1024 * 100];
+byte[] buffer = new byte[1024];
 Random rnd = new Random();
 
 using (connection)
@@ -81,8 +85,6 @@ using (connection)
 
         using (var channel = connection.CreateModel())
         {
-            channel.ConfirmSelect();
-
             channel.CallbackException += (s, ea) =>
             {
                 var cea = (CallbackExceptionEventArgs)ea;
@@ -95,23 +97,25 @@ using (connection)
                 Console.Error.WriteLine($"PRODUCER: channel.ModelShutdown: {sdea}");
             };
 
-            channel.QueueDeclare(queue: "hello", durable: false, exclusive: false, autoDelete: false, arguments: null);
+            channel.ExchangeDeclare(exchange: exchangeName, type: ExchangeType.Topic, durable: true);
 
-            while (true)
+            var queueDeclareResult = channel.QueueDeclare(queue: queueName, durable: true,
+                    exclusive: false, autoDelete: false, arguments: null);
+            Debug.Assert(queueName == queueDeclareResult.QueueName);
+
+            channel.QueueBind(queue: queueName, exchange: exchangeName, routingKey: "update.*");
+
+            channel.ConfirmSelect();
+
+            var latchSpan = TimeSpan.FromSeconds(1);
+            while (false == latch.WaitOne(latchSpan))
             {
                 rnd.NextBytes(buffer);
                 string now = DateTime.Now.ToString("MM/dd/yyyy HH:mm:ss.ffffff");
-                channel.BasicPublish(exchange: "", routingKey: "hello", basicProperties: null, body: buffer);
+                string routingKey = string.Format("update.{0}", Guid.NewGuid().ToString());
+                channel.BasicPublish(exchange: exchangeName, routingKey: routingKey, basicProperties: null, body: buffer);
                 channel.WaitForConfirmsOrDie();
-                Console.WriteLine($"PRODUCER sent large message at {now}, exiting!");
-                break;
-                /*
-                if (latch.WaitOne(latchWaitSpan))
-                {
-                    Console.WriteLine("PRODUCER EXITING");
-                    break;
-                }
-                */
+                Console.WriteLine($"PRODUCER sent message at {now}");
             }
         }
     }

@@ -1,6 +1,11 @@
-﻿using RabbitMQ.Client;
+﻿using System.Diagnostics;
+
+using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
+
+const string exchangeName = "status_exchange";
+const string queueName = "status_updates";
 
 AutoResetEvent latch = new AutoResetEvent(false);
 
@@ -16,8 +21,8 @@ Console.CancelKeyPress += new ConsoleCancelEventHandler(CancelHandler);
 string hostName = "rabbitmq";
 ushort port = 5672;
 
-Console.WriteLine($"CONSUMER: waiting 30 seconds to try initial connection to {hostName}:{port}");
-if (latch.WaitOne(TimeSpan.FromSeconds(30)))
+Console.WriteLine($"CONSUMER: waiting 10 seconds to try initial connection to {hostName}:{port}");
+if (latch.WaitOne(TimeSpan.FromSeconds(10)))
 {
     Console.WriteLine("CONSUMER EXITING");
     Environment.Exit(0);
@@ -97,9 +102,15 @@ using (connection)
                 Console.Error.WriteLine($"CONSUMER: channel.ModelShutdown: {sdea}");
             };
 
-            channel.BasicQos(0, 1, false);
+            channel.ExchangeDeclare(exchange: exchangeName, type: ExchangeType.Topic, durable: true);
 
-            channel.QueueDeclare(queue: "hello", durable: false, exclusive: false, autoDelete: false, arguments: null);
+            var queueDeclareResult = channel.QueueDeclare(queue: queueName, durable: true,
+                    exclusive: false, autoDelete: false, arguments: null);
+            Debug.Assert(queueName == queueDeclareResult.QueueName);
+
+            channel.QueueBind(queue: queueName, exchange: exchangeName, routingKey: "update.*");
+
+            channel.BasicQos(0, 1, false);
 
             Console.WriteLine("CONSUMER: waiting for messages...");
 
@@ -112,7 +123,7 @@ using (connection)
                 channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
             };
 
-            channel.BasicConsume(queue: "hello", autoAck: false, consumer: consumer);
+            channel.BasicConsume(queue: queueName, autoAck: false, consumer: consumer);
 
             latch.WaitOne();
 
